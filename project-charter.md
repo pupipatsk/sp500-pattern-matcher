@@ -3,7 +3,7 @@
 ### 1. Project Overview
 
 - **Project Title:** S&P500 Pattern Matcher
-- **Course Context:** 2110430 Time Series Data Mining – Final Project
+- **Course Context:** 2110430 TIME SERIES MINING AND KNOWLEDGE DISCOVERY – Final Project
 
 ### 2. Executive Summary
 
