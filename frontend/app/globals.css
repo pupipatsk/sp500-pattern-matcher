@@ -111,6 +111,17 @@
     --chart-4: oklch(0.68 0.22 25);   /* down: red */
     --chart-5: oklch(1 0 0 / 40%);    /* guides */
 
+    /* Bloomberg-ish terminal accents */
+    --bb-amber: #ffb000;
+    --bb-green: #00c853;
+    --bb-red: #ff1744;
+    --bb-white: #ffffff;
+
+    --chart-up: var(--bb-green);
+    --chart-down: var(--bb-red);
+    --chart-query: var(--bb-amber);
+    --chart-historic: var(--bb-white);
+
     --radius: 0rem;
 
     --sidebar: oklch(0 0 0);

@@ -6,7 +6,10 @@ export type MatchResponse = {
     t1m: number
     t3m: number
     t6m: number
+    t9m: number
     t1y: number
+    t2y: number
+    t3y: number
   }
   query: {
     start_date: string
@@ -23,6 +26,11 @@ export type MatchResponse = {
   }
 }
 
+export type HistoricSeries = {
+  dates: string[]
+  prices: number[]
+}
+
 export async function postMatch(prompt: string): Promise<MatchResponse> {
   const res = await fetch("http://localhost:8000/match", {
     method: "POST",
@@ -36,5 +44,18 @@ export async function postMatch(prompt: string): Promise<MatchResponse> {
   }
 
   return (await res.json()) as MatchResponse
+}
+
+export async function getHistoric(): Promise<HistoricSeries> {
+  const res = await fetch("http://localhost:8000/historic", {
+    method: "GET",
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(text || `HTTP ${res.status}`)
+  }
+
+  return (await res.json()) as HistoricSeries
 }
 

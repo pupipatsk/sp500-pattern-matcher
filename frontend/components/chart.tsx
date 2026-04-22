@@ -13,33 +13,47 @@ import {
 
 type Props = {
   n: number
-  query: number[]
-  match: number[]
+  historic: { dates: string[]; prices: number[] }
+  match: { dates: string[]; prices: number[]; aligned_end_date: string }
+  query: { dates: string[]; prices: number[] }
 }
 
-function toUtcTimestamp(date: Date): UTCTimestamp {
-  return Math.floor(date.getTime() / 1000) as UTCTimestamp
+function isoDateToUtcTimestamp(isoDate: string): UTCTimestamp {
+  // The backend ships YYYY-MM-DD (no timezone). Treat as UTC midnight.
+  const ms = Date.parse(`${isoDate}T00:00:00Z`)
+  return Math.floor(ms / 1000) as UTCTimestamp
 }
 
-function makeSyntheticTime(i: number): UTCTimestamp {
-  const d = new Date(Date.UTC(2000, 0, 1))
-  d.setUTCDate(d.getUTCDate() + i)
-  return toUtcTimestamp(d)
+function formatIsoFromUtcTimestamp(t: UTCTimestamp): string {
+  return new Date((t as number) * 1000).toISOString().slice(0, 10)
 }
 
-export function BrutalistChart({ n, query, match }: Props) {
+function formatPrice(x: number): string {
+  // Keep it simple for now: terminal-ish, no currency symbol.
+  return x.toFixed(2)
+}
+
+export function BrutalistChart({ n, historic, match, query }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<IChartApi | null>(null)
+  const historicSeriesRef = useRef<ISeriesApi<"Line"> | null>(null)
   const querySeriesRef = useRef<ISeriesApi<"Line"> | null>(null)
-  const matchSeriesRef = useRef<ISeriesApi<"Line"> | null>(null)
+  const tooltipRef = useRef<HTMLDivElement | null>(null)
+  const t0Ref = useRef<HTMLDivElement | null>(null)
 
-  const total = match.length
-  const t0Pct = useMemo(() => {
-    if (total <= 1 || n <= 0) return 0
-    const denom = total - 1
-    const idx = Math.max(0, Math.min(n - 1, denom))
-    return (idx / denom) * 100
-  }, [n, total])
+  const queryIndexByTime = useMemo(() => {
+    const m = new Map<UTCTimestamp, number>()
+    const limit = Math.min(
+      n,
+      match.dates.length,
+      query.dates.length,
+      query.prices.length
+    )
+    for (let i = 0; i < limit; i++) {
+      m.set(isoDateToUtcTimestamp(match.dates[i]), i)
+    }
+    return m
+  }, [match.dates, n, query.dates.length, query.prices.length])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -70,7 +84,7 @@ export function BrutalistChart({ n, query, match }: Props) {
       },
       timeScale: {
         borderColor: "rgba(255,255,255,0.20)",
-        timeVisible: false,
+        timeVisible: true,
         secondsVisible: false,
       },
       crosshair: {
@@ -89,16 +103,16 @@ export function BrutalistChart({ n, query, match }: Props) {
       },
     })
 
-    const querySeries = chart.addSeries(LineSeries, {
-      color: "rgba(255,255,255,0.95)",
+    const historicSeries = chart.addSeries(LineSeries, {
+      color: "#ffffff",
       lineWidth: 2,
       priceScaleId: "right",
       lastValueVisible: true,
       priceLineVisible: true,
     })
 
-    const matchSeries = chart.addSeries(LineSeries, {
-      color: "rgba(255,200,64,0.95)",
+    const querySeries = chart.addSeries(LineSeries, {
+      color: "#ffb000",
       lineWidth: 2,
       priceScaleId: "left",
       lastValueVisible: true,
@@ -106,70 +120,205 @@ export function BrutalistChart({ n, query, match }: Props) {
     })
 
     chartRef.current = chart
+    historicSeriesRef.current = historicSeries
     querySeriesRef.current = querySeries
-    matchSeriesRef.current = matchSeries
-
-    const ro = new ResizeObserver(() => {
-      chart.timeScale().fitContent()
-    })
-    ro.observe(el)
 
     return () => {
-      ro.disconnect()
       chart.remove()
       chartRef.current = null
+      historicSeriesRef.current = null
       querySeriesRef.current = null
-      matchSeriesRef.current = null
     }
   }, [])
 
   useEffect(() => {
     const chart = chartRef.current
+    const historicSeries = historicSeriesRef.current
     const querySeries = querySeriesRef.current
-    const matchSeries = matchSeriesRef.current
-    if (!chart || !querySeries || !matchSeries) return
+    if (!chart || !historicSeries || !querySeries) return
 
-    const qData: LineData[] = query.map((v, i) => ({
-      time: makeSyntheticTime(i),
-      value: v,
+    const histLimit = Math.min(historic.dates.length, historic.prices.length)
+    const histData: LineData[] = Array.from({ length: histLimit }, (_, i) => ({
+      time: isoDateToUtcTimestamp(historic.dates[i]),
+      value: historic.prices[i],
     }))
 
-    const mData: LineData[] = match.map((v, i) => ({
-      time: makeSyntheticTime(i),
-      value: v,
+    const qLimit = Math.min(n, match.dates.length, query.prices.length)
+    const qData: LineData[] = Array.from({ length: qLimit }, (_, i) => ({
+      time: isoDateToUtcTimestamp(match.dates[i]),
+      value: query.prices[i],
     }))
 
+    historicSeries.setData(histData)
     querySeries.setData(qData)
-    matchSeries.setData(mData)
-    chart.timeScale().fitContent()
-  }, [query, match])
+
+    // Default view: show ~1 year before match window start through the full
+    // forward tail (up to 3Y). The full historic series is still accessible by
+    // scrolling/zooming left.
+    if (match.dates.length > 0) {
+      const matchStartTs = isoDateToUtcTimestamp(match.dates[0])
+      const matchEndTs = isoDateToUtcTimestamp(
+        match.dates[match.dates.length - 1]
+      )
+      const oneYearSecs = 365 * 24 * 60 * 60
+      chart.timeScale().setVisibleRange({
+        from: (matchStartTs - oneYearSecs) as UTCTimestamp,
+        to: matchEndTs,
+      })
+    } else {
+      chart.timeScale().fitContent()
+    }
+
+    const t0El = t0Ref.current
+    const t0Time = isoDateToUtcTimestamp(match.aligned_end_date)
+    const updateT0 = () => {
+      if (!t0El) return
+      const x = chart.timeScale().timeToCoordinate(t0Time)
+      if (x == null) {
+        t0El.style.display = "none"
+        return
+      }
+      t0El.style.display = "block"
+      t0El.style.left = `${x}px`
+    }
+
+    updateT0()
+
+    const onRange = () => updateT0()
+    chart.timeScale().subscribeVisibleTimeRangeChange(onRange)
+
+    return () => {
+      chart.timeScale().unsubscribeVisibleTimeRangeChange(onRange)
+    }
+  }, [
+    historic.dates,
+    historic.prices,
+    match.aligned_end_date,
+    match.dates,
+    n,
+    query.prices,
+  ])
+
+  useEffect(() => {
+    const chart = chartRef.current
+    const historicSeries = historicSeriesRef.current
+    const querySeries = querySeriesRef.current
+    const tooltipEl = tooltipRef.current
+    if (!chart || !historicSeries || !querySeries || !tooltipEl) return
+
+    const onMove = (param: any) => {
+      if (
+        !param?.point ||
+        param.point.x < 0 ||
+        param.point.y < 0 ||
+        !param?.time
+      ) {
+        tooltipEl.style.display = "none"
+        return
+      }
+
+      const t = param.time as UTCTimestamp
+      const histDate = formatIsoFromUtcTimestamp(t)
+
+      const histPoint = param.seriesData?.get(historicSeries)
+      const qPoint = param.seriesData?.get(querySeries)
+
+      const histValue =
+        histPoint && typeof (histPoint as any).value === "number"
+          ? ((histPoint as any).value as number)
+          : null
+
+      const qValue =
+        qPoint && typeof (qPoint as any).value === "number"
+          ? ((qPoint as any).value as number)
+          : null
+
+      const qIdx = queryIndexByTime.get(t)
+      const qDate = qIdx != null ? query.dates[qIdx] : null
+
+      tooltipEl.style.display = "block"
+      tooltipEl.innerHTML = `
+        <div style="display:flex;justify-content:space-between;gap:12px;">
+          <div style="color:rgba(255,255,255,0.75);letter-spacing:0.12em;text-transform:uppercase;font-size:10px;">HISTORIC</div>
+          <div style="color:rgba(255,255,255,0.95);font-size:12px;">${histDate}</div>
+        </div>
+        <div style="margin-top:6px;display:flex;justify-content:space-between;gap:12px;">
+          <div style="color:var(--chart-historic);letter-spacing:0.12em;text-transform:uppercase;font-size:10px;">SPY</div>
+          <div style="color:var(--chart-historic);font-size:12px;">${
+            histValue == null ? "—" : formatPrice(histValue)
+          }</div>
+        </div>
+        ${
+          qIdx == null
+            ? ""
+            : `<div style="margin-top:8px;height:1px;background:rgba(255,255,255,0.12)"></div>
+               <div style="margin-top:8px;display:flex;justify-content:space-between;gap:12px;">
+                 <div style="color:rgba(255,176,0,0.75);letter-spacing:0.12em;text-transform:uppercase;font-size:10px;">QUERY</div>
+                 <div style="color:rgba(255,255,255,0.95);font-size:12px;">${qDate ?? "—"}</div>
+               </div>
+               <div style="margin-top:6px;display:flex;justify-content:space-between;gap:12px;">
+                 <div style="color:var(--chart-query);letter-spacing:0.12em;text-transform:uppercase;font-size:10px;">SPY</div>
+                 <div style="color:var(--chart-query);font-size:12px;">${
+                   qValue == null ? "—" : formatPrice(qValue)
+                 }</div>
+               </div>`
+        }
+      `
+
+      const bounds = (
+        containerRef.current as HTMLDivElement
+      ).getBoundingClientRect()
+      const w = tooltipEl.offsetWidth
+      const h = tooltipEl.offsetHeight
+      const pad = 12
+
+      const x = Math.min(
+        Math.max(param.point.x + pad, pad),
+        bounds.width - w - pad
+      )
+      const y = Math.min(
+        Math.max(param.point.y + pad, pad),
+        bounds.height - h - pad
+      )
+      tooltipEl.style.left = `${x}px`
+      tooltipEl.style.top = `${y}px`
+    }
+
+    chart.subscribeCrosshairMove(onMove)
+    return () => chart.unsubscribeCrosshairMove(onMove)
+  }, [query.dates, queryIndexByTime])
 
   return (
     <div className="relative h-full w-full">
       <div ref={containerRef} className="absolute inset-0" />
 
       {/* Axis captions (overlay) */}
-      <div className="pointer-events-none absolute left-3 top-3 text-[10px] uppercase tracking-widest text-[rgba(255,200,64,0.85)]">
-        MATCH $ (LEFT)
+      <div className="pointer-events-none absolute top-3 left-3 text-[10px] tracking-widest text-(--chart-historic) uppercase">
+        HISTORIC S&amp;P500 — CLOSE (RIGHT / WHITE)
       </div>
-      <div className="pointer-events-none absolute right-3 top-3 text-[10px] uppercase tracking-widest text-white/80">
-        QUERY $ (RIGHT)
+      <div className="pointer-events-none absolute top-3 right-3 text-[10px] tracking-widest text-(--chart-query) uppercase">
+        QUERY — CLOSE (LEFT / YELLOW)
       </div>
-      <div className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-[10px] uppercase tracking-widest text-white/60">
-        TRADING DAYS FROM WINDOW START
+      <div className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-[10px] tracking-widest text-white/60 uppercase">
+        DATE (HISTORIC)
       </div>
+
+      {/* Tooltip (crosshair) */}
+      <div
+        ref={tooltipRef}
+        className="pointer-events-none absolute z-20 hidden min-w-56 border border-white/20 bg-black/95 px-3 py-2 text-xs text-white/90 shadow-[0_0_0_1px_rgba(0,0,0,0.4)]"
+      ></div>
 
       {/* T0 divider */}
       <div
-        className="pointer-events-none absolute inset-y-0"
-        style={{ left: `${t0Pct}%` }}
+        ref={t0Ref}
+        className="pointer-events-none absolute inset-y-0 hidden"
       >
         <div className="h-full w-px border-l border-dashed border-white/50" />
-        <div className="absolute left-2 top-2 border border-white/40 bg-black px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-white/85">
+        <div className="absolute top-2 left-2 border border-white/40 bg-black px-1.5 py-0.5 text-[10px] font-semibold tracking-widest text-white/85 uppercase">
           T0
         </div>
       </div>
     </div>
   )
 }
-

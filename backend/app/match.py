@@ -10,7 +10,7 @@ from .models import ForwardReturns, MatchPayload, MatchResponse, QueryPayload
 from .tsmining import compute_envelope, dtw_sakoe_chiba, lb_keogh, znormalize
 
 
-FORWARD_DAYS_V0 = 252  # ~1 trading year
+FORWARD_DAYS_V0 = 756  # ~3 trading years
 
 
 def _to_date(s: str) -> date:
@@ -147,7 +147,10 @@ def build_match_response(*, query_start_date: str, query_end_date: str) -> Match
         t1m=_ret(21),
         t3m=_ret(63),
         t6m=_ret(126),
+        t9m=_ret(189),
         t1y=_ret(252),
+        t2y=_ret(504),
+        t3y=_ret(756),
     )
 
     return MatchResponse(

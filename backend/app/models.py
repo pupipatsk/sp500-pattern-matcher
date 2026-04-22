@@ -27,7 +27,10 @@ class ForwardReturns(BaseModel):
     t1m: float
     t3m: float
     t6m: float
+    t9m: float
     t1y: float
+    t2y: float
+    t3y: float
 
 
 class MatchResponse(BaseModel):
