@@ -1,15 +1,20 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 from datetime import date, timedelta
 
 from dotenv import load_dotenv
+from openai import OpenAI
 from pydantic import BaseModel
 
 from .data import get_dataset_meta
 
 load_dotenv()
+
+MODEL = os.getenv("VLLM_MODEL", "Qwen/Qwen3.5-2B")
+ENDPOINT = os.getenv("VLLM_ENDPOINT", "http://localhost:9000/v1")
 
 
 class QueryRange(BaseModel):
@@ -58,20 +63,11 @@ def parse_query_range(prompt: str) -> tuple[str, str]:
     if regex is not None:
         return regex.query_start_date, regex.query_end_date
 
-    api_key = (os.getenv("GEMINI_API_KEY") or "").strip()
-    if not api_key:
-        # Minimal default if Gemini isn't configured.
-        default_start = (today - timedelta(days=365)).isoformat()
-        return default_start, today.isoformat()
-
-    from google import genai
-    from google.genai import types
-
     meta = get_dataset_meta()
 
     system = (
         "You are a financial time-series query parser for S&P 500 daily data.\n"
-        "Return ONLY JSON matching the provided schema.\n"
+        "Return ONLY valid JSON with keys query_start_date and query_end_date.\n"
         "Dates must be ISO format YYYY-MM-DD.\n"
         f"Today is {today.isoformat()}.\n"
         f"Dataset bounds: min_date={meta['min_date']}, max_date={meta['max_date']}.\n"
@@ -80,28 +76,24 @@ def parse_query_range(prompt: str) -> tuple[str, str]:
         "Prefer longer windows (6-18 months) for 'current pattern' style prompts unless a shorter window is specified.\n"
     )
 
-    client = genai.Client(api_key=api_key)
-    res = client.models.generate_content(
-        model="gemini-3.1-flash-lite-preview",
-        contents=[
-            types.Content(role="user", parts=[types.Part(text=prompt)]),
+    client = OpenAI(base_url=ENDPOINT, api_key="not-needed")
+    res = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt},
         ],
-        config=types.GenerateContentConfig(
-            system_instruction=system,
-            response_mime_type="application/json",
-            response_schema=QueryRange,
-            temperature=0,
-        ),
+        response_format={"type": "json_object"},
+        temperature=0,
     )
 
-    # google-genai returns text; parse and validate defensively.
-    text = getattr(res, "text", None) or ""
+    text = res.choices[0].message.content or ""
     try:
-        parsed = QueryRange.model_validate_json(text)
+        parsed = QueryRange.model_validate(json.loads(text))
     except Exception as e:  # noqa: BLE001
-        raise RuntimeError(f"Gemini returned invalid JSON: {text[:200]}") from e
+        raise RuntimeError(f"vLLM returned invalid JSON: {text[:200]}") from e
 
     if not parsed.query_start_date or not parsed.query_end_date:
-        raise RuntimeError(f"Gemini returned empty dates: {text[:200]}")
-
+        raise RuntimeError(f"vLLM returned empty dates: {text[:200]}")
+    print(f"Parsed query range: {parsed.query_start_date} to {parsed.query_end_date}")
     return parsed.query_start_date, parsed.query_end_date
