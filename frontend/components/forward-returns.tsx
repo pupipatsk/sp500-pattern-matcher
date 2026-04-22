@@ -1,5 +1,3 @@
-"use client"
-
 function formatPct(x: number): string {
   const pct = x * 100
   const abs = Math.abs(pct)

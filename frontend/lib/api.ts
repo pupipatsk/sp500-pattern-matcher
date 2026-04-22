@@ -31,8 +31,16 @@ export type HistoricSeries = {
   prices: number[]
 }
 
+function getApiBaseUrl(): string {
+  return (
+    process.env.NEXT_PUBLIC_API_BASE_URL ??
+    process.env.API_BASE_URL ??
+    "http://localhost:8000"
+  )
+}
+
 export async function postMatch(prompt: string): Promise<MatchResponse> {
-  const res = await fetch("http://localhost:8000/match", {
+  const res = await fetch(`${getApiBaseUrl()}/match`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ prompt }),
@@ -47,7 +55,7 @@ export async function postMatch(prompt: string): Promise<MatchResponse> {
 }
 
 export async function getHistoric(): Promise<HistoricSeries> {
-  const res = await fetch("http://localhost:8000/historic", {
+  const res = await fetch(`${getApiBaseUrl()}/historic`, {
     method: "GET",
   })
 
