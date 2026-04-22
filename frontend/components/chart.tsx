@@ -8,6 +8,8 @@ import {
   type IChartApi,
   type ISeriesApi,
   type LineData,
+  type MouseEventParams,
+  type Time,
   type UTCTimestamp,
 } from "lightweight-charts"
 
@@ -206,12 +208,12 @@ export function BrutalistChart({ n, historic, match, query }: Props) {
     const tooltipEl = tooltipRef.current
     if (!chart || !historicSeries || !querySeries || !tooltipEl) return
 
-    const onMove = (param: any) => {
+    const onMove = (param: MouseEventParams<Time>) => {
       if (
-        !param?.point ||
+        !param.point ||
         param.point.x < 0 ||
         param.point.y < 0 ||
-        !param?.time
+        param.time == null
       ) {
         tooltipEl.style.display = "none"
         return
@@ -220,18 +222,20 @@ export function BrutalistChart({ n, historic, match, query }: Props) {
       const t = param.time as UTCTimestamp
       const histDate = formatIsoFromUtcTimestamp(t)
 
-      const histPoint = param.seriesData?.get(historicSeries)
-      const qPoint = param.seriesData?.get(querySeries)
+      const histPoint = param.seriesData.get(historicSeries) as
+        | LineData<Time>
+        | undefined
+      const qPoint = param.seriesData.get(querySeries) as
+        | LineData<Time>
+        | undefined
 
       const histValue =
-        histPoint && typeof (histPoint as any).value === "number"
-          ? ((histPoint as any).value as number)
+        histPoint != null && typeof histPoint.value === "number"
+          ? histPoint.value
           : null
 
       const qValue =
-        qPoint && typeof (qPoint as any).value === "number"
-          ? ((qPoint as any).value as number)
-          : null
+        qPoint != null && typeof qPoint.value === "number" ? qPoint.value : null
 
       const qIdx = queryIndexByTime.get(t)
       const qDate = qIdx != null ? query.dates[qIdx] : null
