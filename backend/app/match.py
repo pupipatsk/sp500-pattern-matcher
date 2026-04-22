@@ -1,0 +1,108 @@
+from __future__ import annotations
+
+import random
+from datetime import date
+
+import pandas as pd
+
+from .data import get_sp500_df
+from .models import MatchPayload, MatchResponse, QueryPayload
+
+
+FORWARD_DAYS_V0 = 252  # ~1 trading year
+
+
+def _to_date(s: str) -> date:
+    return pd.to_datetime(s).date()
+
+
+def _snap_to_trading_day(d: date, trading_days: list[date]) -> date:
+    # Choose the closest available trading day by absolute distance.
+    # For speed, we binary-search via pandas.
+    idx = pd.DatetimeIndex(pd.to_datetime(trading_days))
+    pos = idx.get_indexer([pd.Timestamp(d)], method="nearest")[0]
+    return trading_days[int(pos)]
+
+
+def _slice_by_dates(df: pd.DataFrame, start: date, end: date) -> pd.DataFrame:
+    mask = (df["Date"] >= start) & (df["Date"] <= end)
+    out = df.loc[mask, ["Date", "Close"]].copy()
+    out = out.sort_values("Date")
+    return out
+
+
+def build_match_response(*, query_start_date: str, query_end_date: str) -> MatchResponse:
+    df = get_sp500_df()
+    trading_days = df["Date"].tolist()
+
+    min_d = trading_days[0]
+    max_d = trading_days[-1]
+
+    raw_start = _to_date(query_start_date)
+    raw_end = _to_date(query_end_date)
+    if raw_start > raw_end:
+        raw_start, raw_end = raw_end, raw_start
+
+    clamped_start = min(max(raw_start, min_d), max_d)
+    clamped_end = min(max(raw_end, min_d), max_d)
+
+    start = _snap_to_trading_day(clamped_start, trading_days)
+    end = _snap_to_trading_day(clamped_end, trading_days)
+    if start > end:
+        start, end = end, start
+
+    query_df = _slice_by_dates(df, start, end)
+    if query_df.empty:
+        raise RuntimeError("Query date range produced empty slice")
+
+    n = int(len(query_df))
+    forward_days = int(FORWARD_DAYS_V0)
+
+    # Build index mapping Date -> row index for overlap checks.
+    day_to_idx = {d: i for i, d in enumerate(trading_days)}
+    q_start_idx = day_to_idx[query_df["Date"].iloc[0]]
+    q_end_idx = day_to_idx[query_df["Date"].iloc[-1]]
+
+    max_start_idx = len(trading_days) - (n + forward_days)
+    if max_start_idx <= 0:
+        raise RuntimeError("Dataset too small for requested query window + forward tail")
+
+    # Sample until we find a non-overlapping window.
+    # (Deterministic seed can be added later; v0 is intentionally simple.)
+    for _ in range(2000):
+        start_idx = random.randint(0, max_start_idx)
+        end_idx = start_idx + n - 1
+        forward_end_idx = end_idx + forward_days
+
+        # Reject windows that overlap the query segment.
+        overlaps = not (forward_end_idx < q_start_idx or start_idx > q_end_idx)
+        if overlaps:
+            continue
+
+        match_slice = df.iloc[start_idx : forward_end_idx + 1][["Date", "Close"]].copy()
+        match_slice = match_slice.dropna(subset=["Close"]).reset_index(drop=True)
+        if len(match_slice) != n + forward_days:
+            continue
+
+        aligned_end_date = match_slice["Date"].iloc[n - 1]
+        forward_end_date = match_slice["Date"].iloc[-1]
+
+        query = QueryPayload(
+            start_date=query_df["Date"].iloc[0].isoformat(),
+            end_date=query_df["Date"].iloc[-1].isoformat(),
+            dates=[d.isoformat() for d in query_df["Date"].tolist()],
+            prices=[float(x) for x in query_df["Close"].tolist()],
+        )
+
+        match = MatchPayload(
+            start_date=match_slice["Date"].iloc[0].isoformat(),
+            aligned_end_date=aligned_end_date.isoformat(),
+            forward_end_date=forward_end_date.isoformat(),
+            dates=[d.isoformat() for d in match_slice["Date"].tolist()],
+            prices=[float(x) for x in match_slice["Close"].tolist()],
+        )
+
+        return MatchResponse(n=n, forward_days=forward_days, query=query, match=match)
+
+    raise RuntimeError("Failed to sample a non-overlapping match window")
+

@@ -1,0 +1,33 @@
+export type MatchResponse = {
+  n: number
+  forward_days: number
+  query: {
+    start_date: string
+    end_date: string
+    dates: string[]
+    prices: number[]
+  }
+  match: {
+    start_date: string
+    aligned_end_date: string
+    forward_end_date: string
+    dates: string[]
+    prices: number[]
+  }
+}
+
+export async function postMatch(prompt: string): Promise<MatchResponse> {
+  const res = await fetch("http://localhost:8000/match", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ prompt }),
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(text || `HTTP ${res.status}`)
+  }
+
+  return (await res.json()) as MatchResponse
+}
+

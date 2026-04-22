@@ -1,1 +1,17 @@
 .DS_Store
+
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# env
+.env
+.env.*
+
+# backend
+backend/.venv/
+backend/data/
+backend/.python-version
+backend/__pycache__/
+backend/app/__pycache__/
