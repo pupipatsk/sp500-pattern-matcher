@@ -27,7 +27,7 @@ export function PromptBar({ loading, onRun }: Props) {
         }}
         spellCheck={false}
         className="h-11 w-full min-w-0 border border-border bg-background px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-white/50"
-        placeholder="DESCRIBE THE QUERY WINDOW (E.G. 'JAN 2025 THROUGH NOW')"
+        placeholder="DESCRIBE THE QUERY WINDOW (E.G. 'last 2 years')"
       />
       <Button
         type="button"
