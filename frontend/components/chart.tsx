@@ -12,12 +12,11 @@ import {
   type Time,
   type UTCTimestamp,
 } from "lightweight-charts"
+import type { HistoricSeries, MatchResponse } from "@/lib/api"
 
 type Props = {
-  n: number
-  historic: { dates: string[]; prices: number[] }
-  match: { dates: string[]; prices: number[]; aligned_end_date: string }
-  query: { dates: string[]; prices: number[] }
+  historic: HistoricSeries
+  result: MatchResponse
 }
 
 function isoDateToUtcTimestamp(isoDate: string): UTCTimestamp {
@@ -35,13 +34,15 @@ function formatPrice(x: number): string {
   return x.toFixed(2)
 }
 
-export function BrutalistChart({ n, historic, match, query }: Props) {
+export function BrutalistChart({ historic, result }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const historicSeriesRef = useRef<ISeriesApi<"Line"> | null>(null)
   const querySeriesRef = useRef<ISeriesApi<"Line"> | null>(null)
   const tooltipRef = useRef<HTMLDivElement | null>(null)
   const t0Ref = useRef<HTMLDivElement | null>(null)
+
+  const { n, match, query } = result
 
   const queryIndexByTime = useMemo(() => {
     const m = new Map<UTCTimestamp, number>()

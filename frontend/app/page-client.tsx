@@ -5,6 +5,7 @@ import dynamic from "next/dynamic"
 import { ForwardReturnsStrip } from "@/components/forward-returns"
 import { PromptBar } from "@/components/prompt-bar"
 import { useMatch } from "@/hooks/use-match"
+import type { HistoricSeries, MatchResponse } from "@/lib/api"
 
 const BrutalistChart = dynamic(
   () => import("@/components/chart").then((m) => m.BrutalistChart),
@@ -12,7 +13,79 @@ const BrutalistChart = dynamic(
 )
 
 type Props = {
-  historic: { dates: string[]; prices: number[] }
+  historic: HistoricSeries
+}
+
+function Header() {
+  return (
+    <header className="flex items-center justify-between px-4 pt-3">
+      <div className="text-xs font-semibold tracking-widest uppercase">
+        S&amp;P500 PATTERN MATCHER
+      </div>
+      <div className="flex items-center gap-3 text-[10px] tracking-widest text-white/70 uppercase">
+        <span className="inline-flex items-center gap-2">
+          <span className="inline-block size-2 rounded-none bg-white/70" />
+          LOCALHOST
+        </span>
+      </div>
+    </header>
+  )
+}
+
+function MatchIdleView() {
+  return (
+    <div className="relative overflow-hidden border border-border">
+      <div className="flex h-full items-center justify-center px-6">
+        <div className="max-w-xl text-center text-xs leading-relaxed text-white/70">
+          ● SYSTEM READY: Uncover the next move by searching the past.
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function MatchResultStatus({ data }: { data: MatchResponse }) {
+  return (
+    <>
+      <div className="truncate">
+        QUERY {data.query.start_date} → {data.query.end_date} N={data.n}
+      </div>
+      <div className="truncate">
+        MATCH {data.match.start_date} → {data.match.aligned_end_date} FORWARD →{" "}
+        {data.match.forward_end_date} DTW={data.dtw_distance.toFixed(2)}
+      </div>
+    </>
+  )
+}
+
+function MatchResultView({
+  historic,
+  data,
+}: {
+  historic: HistoricSeries
+  data: MatchResponse
+}) {
+  return (
+    <>
+      <div className="relative overflow-hidden border border-border">
+        <BrutalistChart historic={historic} result={data} />
+      </div>
+
+      <div className="flex min-h-7 items-center justify-between px-3 text-[10px] tracking-widest text-white/70 uppercase">
+        <MatchResultStatus data={data} />
+      </div>
+
+      <ForwardReturnsStrip returns={data.forward_returns} />
+    </>
+  )
+}
+
+function ErrorBanner({ error }: { error: string }) {
+  return (
+    <div className="border border-border px-3 py-2 text-xs text-white/80">
+      ERROR: {error}
+    </div>
+  )
 }
 
 export function PageClient({ historic }: Props) {
@@ -20,66 +93,20 @@ export function PageClient({ historic }: Props) {
 
   return (
     <div className="grid min-h-svh grid-rows-[auto_1fr_auto]">
-      <header className="flex items-center justify-between px-4 pt-3">
-        <div className="text-xs font-semibold tracking-widest uppercase">
-          S&amp;P500 PATTERN MATCHER
-        </div>
-        <div className="flex items-center gap-3 text-[10px] tracking-widest text-white/70 uppercase">
-          <span className="inline-flex items-center gap-2">
-            <span className="inline-block size-2 rounded-none bg-white/70" />
-            LOCALHOST
-          </span>
-        </div>
-      </header>
+      <Header />
 
       <main className="p-4">
         <div className="grid h-full grid-rows-[1fr_auto_auto] gap-2">
-          <div className="relative overflow-hidden border border-border">
-            {data ? (
-              <BrutalistChart
-                n={data.n}
-                historic={historic}
-                query={data.query}
-                match={{
-                  dates: data.match.dates,
-                  prices: data.match.prices,
-                  aligned_end_date: data.match.aligned_end_date,
-                }}
-              />
-            ) : (
-              <div className="flex h-full items-center justify-center px-6">
-                <div className="max-w-xl text-center text-xs leading-relaxed text-white/70">
-                  ● SYSTEM READY: Uncover the next move by searching the past.
-                </div>
+          {data ? <MatchResultView historic={historic} data={data} /> : null}
+          {data ? null : (
+            <>
+              <MatchIdleView />
+              <div className="flex min-h-7 items-center justify-between px-3 text-[10px] tracking-widest text-white/70 uppercase">
+                <div className="truncate">READY</div>
               </div>
-            )}
-          </div>
-
-          <div className="flex min-h-7 items-center justify-between px-3 text-[10px] tracking-widest text-white/70 uppercase">
-            {data ? (
-              <>
-                <div className="truncate">
-                  QUERY {data.query.start_date} → {data.query.end_date} N=
-                  {data.n}
-                </div>
-                <div className="truncate">
-                  MATCH {data.match.start_date} → {data.match.aligned_end_date}{" "}
-                  FORWARD → {data.match.forward_end_date} DTW=
-                  {data.dtw_distance.toFixed(2)}
-                </div>
-              </>
-            ) : (
-              <div className="truncate">READY</div>
-            )}
-          </div>
-
-          {data ? <ForwardReturnsStrip returns={data.forward_returns} /> : null}
-
-          {error ? (
-            <div className="border border-border px-3 py-2 text-xs text-white/80">
-              ERROR: {error}
-            </div>
-          ) : null}
+            </>
+          )}
+          {error ? <ErrorBanner error={error} /> : null}
         </div>
       </main>
 

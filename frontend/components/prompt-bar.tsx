@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState, type ReactNode } from "react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -41,9 +41,10 @@ function TerminalSpinner() {
 type Props = {
   loading: boolean
   onRun: (prompt: string) => void
+  children?: ReactNode
 }
 
-export function PromptBar({ loading, onRun }: Props) {
+export function PromptBar({ loading, onRun, children }: Props) {
   const [prompt, setPrompt] = useState(
     "Compare today’s pattern with history to see what followed."
   )
@@ -75,26 +76,28 @@ export function PromptBar({ loading, onRun }: Props) {
         )}
         placeholder="DESCRIBE THE QUERY WINDOW (E.G. 'last 2 years')"
       />
-      <Button
-        type="button"
-        disabled={loading}
-        aria-busy={loading}
-        onClick={submit}
-        className={cn(
-          "h-11 shrink-0 gap-2 rounded-none border bg-background px-4 font-mono text-xs tracking-widest text-foreground hover:bg-white/5 disabled:opacity-60",
-          isEmpty ? "border-white/50" : "border-border"
-        )}
-        variant="outline"
-      >
-        {loading ? (
-          <>
-            <TerminalSpinner />
-            MATCHING
-          </>
-        ) : (
-          "[ EXECUTE ]"
-        )}
-      </Button>
+      {children ?? (
+        <Button
+          type="button"
+          disabled={loading}
+          aria-busy={loading}
+          onClick={submit}
+          className={cn(
+            "h-11 shrink-0 gap-2 rounded-none border bg-background px-4 font-mono text-xs tracking-widest text-foreground hover:bg-white/5 disabled:opacity-60",
+            isEmpty ? "border-white/50" : "border-border"
+          )}
+          variant="outline"
+        >
+          {loading ? (
+            <>
+              <TerminalSpinner />
+              MATCHING
+            </>
+          ) : (
+            "[ EXECUTE ]"
+          )}
+        </Button>
+      )}
     </div>
   )
 }
