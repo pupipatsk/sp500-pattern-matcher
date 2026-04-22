@@ -5,7 +5,7 @@ Time Series Mining and Knowledge Discovery Final Project
 Example query:
 
 - Regex: "last 2 years"
-- GeminiAPI: "What is the S&P 500's current pattern like and what happened next in the past?"
+- GeminiAPI: "Compare today’s pattern with history to see what followed."
 
 ## Dev setup
 

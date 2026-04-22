@@ -16,7 +16,7 @@ export default function Page() {
 
   return (
     <div className="grid min-h-svh grid-rows-[auto_1fr_auto]">
-      <header className="flex items-center justify-between border-b border-border px-4 py-3">
+      <header className="flex items-center justify-between px-4 pt-3">
         <div className="text-xs font-semibold tracking-widest uppercase">
           S&amp;P500 PATTERN MATCHER
         </div>
@@ -49,9 +49,8 @@ export default function Page() {
                     <>LOADING HISTORIC SERIES…</>
                   ) : (
                     <>
-                      ENTER A DATE RANGE PROMPT (E.G. &quot;JAN 2025 THROUGH
-                      NOW&quot;) THEN EXECUTE TO OVERLAY TODAY&apos;S PATTERN
-                      AGAINST ITS NEAREST-NEIGHBOR DTW MATCH + FORWARD YEARS.
+                      ● SYSTEM READY: Uncover the next move by searching the
+                      past.
                     </>
                   )}
                 </div>
@@ -59,7 +58,7 @@ export default function Page() {
             )}
           </div>
 
-          <div className="flex min-h-7 items-center justify-between border border-border px-3 text-[10px] tracking-widest text-white/70 uppercase">
+          <div className="flex min-h-7 items-center justify-between px-3 text-[10px] tracking-widest text-white/70 uppercase">
             {data ? (
               <>
                 <div className="truncate">
@@ -87,7 +86,7 @@ export default function Page() {
         </div>
       </main>
 
-      <footer className="border-t border-border px-4 py-3">
+      <footer className="px-4 pb-4">
         <PromptBar loading={loading} onRun={run} />
       </footer>
     </div>
