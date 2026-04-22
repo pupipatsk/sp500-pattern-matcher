@@ -143,5 +143,6 @@
     }
   html {
     @apply font-mono;
-    }
+    color-scheme: dark;
+  }
 }
