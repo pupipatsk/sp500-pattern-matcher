@@ -1,6 +1,7 @@
 "use client"
 
 import { BrutalistChart } from "@/components/chart"
+import { ForwardReturnsStrip } from "@/components/forward-returns"
 import { PromptBar } from "@/components/prompt-bar"
 import { useMatch } from "@/hooks/use-match"
 
@@ -22,7 +23,7 @@ export default function Page() {
       </header>
 
       <main className="p-4">
-        <div className="grid h-full grid-rows-[1fr_auto] gap-2">
+        <div className="grid h-full grid-rows-[1fr_auto_auto] gap-2">
           <div className="relative overflow-hidden border border-border">
             {data ? (
               <BrutalistChart
@@ -34,8 +35,8 @@ export default function Page() {
               <div className="flex h-full items-center justify-center px-6">
                 <div className="max-w-xl text-center text-xs leading-relaxed text-white/70">
                   ENTER A DATE RANGE PROMPT (E.G. &quot;JAN 2025 THROUGH NOW&quot;)
-                  THEN EXECUTE TO OVERLAY TODAY&apos;S PATTERN AGAINST A RANDOM
-                  HISTORICAL WINDOW + ITS FORWARD YEAR.
+                  THEN EXECUTE TO OVERLAY TODAY&apos;S PATTERN AGAINST ITS
+                  NEAREST-NEIGHBOR DTW MATCH + FORWARD YEAR.
                 </div>
               </div>
             )}
@@ -50,13 +51,16 @@ export default function Page() {
                 </div>
                 <div className="truncate">
                   MATCH {data.match.start_date} → {data.match.aligned_end_date}{" "}
-                  FORWARD → {data.match.forward_end_date}
+                  FORWARD → {data.match.forward_end_date} DTW=
+                  {data.dtw_distance.toFixed(2)}
                 </div>
               </>
             ) : (
               <div className="truncate">READY</div>
             )}
           </div>
+
+          {data ? <ForwardReturnsStrip returns={data.forward_returns} /> : null}
 
           {error ? (
             <div className="border border-border px-3 py-2 text-xs text-white/80">

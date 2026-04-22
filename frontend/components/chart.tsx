@@ -148,13 +148,24 @@ export function BrutalistChart({ n, query, match }: Props) {
     <div className="relative h-full w-full">
       <div ref={containerRef} className="absolute inset-0" />
 
+      {/* Axis captions (overlay) */}
+      <div className="pointer-events-none absolute left-3 top-3 text-[10px] uppercase tracking-widest text-[rgba(255,200,64,0.85)]">
+        MATCH $ (LEFT)
+      </div>
+      <div className="pointer-events-none absolute right-3 top-3 text-[10px] uppercase tracking-widest text-white/80">
+        QUERY $ (RIGHT)
+      </div>
+      <div className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-[10px] uppercase tracking-widest text-white/60">
+        TRADING DAYS FROM WINDOW START
+      </div>
+
       {/* T0 divider */}
       <div
         className="pointer-events-none absolute inset-y-0"
         style={{ left: `${t0Pct}%` }}
       >
-        <div className="h-full w-px border-l border-dashed border-white/30" />
-        <div className="absolute left-2 top-2 text-[10px] uppercase tracking-widest text-white/70">
+        <div className="h-full w-px border-l border-dashed border-white/50" />
+        <div className="absolute left-2 top-2 border border-white/40 bg-black px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-white/85">
           T0
         </div>
       </div>

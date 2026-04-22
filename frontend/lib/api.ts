@@ -1,6 +1,13 @@
 export type MatchResponse = {
   n: number
   forward_days: number
+  dtw_distance: number
+  forward_returns: {
+    t1m: number
+    t3m: number
+    t6m: number
+    t1y: number
+  }
   query: {
     start_date: string
     end_date: string

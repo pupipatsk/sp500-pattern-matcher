@@ -23,11 +23,20 @@ class MatchPayload(SeriesPayload):
     forward_end_date: str
 
 
+class ForwardReturns(BaseModel):
+    t1m: float
+    t3m: float
+    t6m: float
+    t1y: float
+
+
 class MatchResponse(BaseModel):
     n: int
     forward_days: int
     query: QueryPayload
     match: MatchPayload
+    forward_returns: ForwardReturns
+    dtw_distance: float
 
 
 class HealthResponse(BaseModel):

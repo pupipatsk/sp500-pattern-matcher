@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import random
 from datetime import date
 
+import numpy as np
 import pandas as pd
 
 from .data import get_sp500_df
-from .models import MatchPayload, MatchResponse, QueryPayload
+from .models import ForwardReturns, MatchPayload, MatchResponse, QueryPayload
+from .tsmining import compute_envelope, dtw_sakoe_chiba, lb_keogh, znormalize
 
 
 FORWARD_DAYS_V0 = 252  # ~1 trading year
@@ -67,42 +68,94 @@ def build_match_response(*, query_start_date: str, query_end_date: str) -> Match
     if max_start_idx <= 0:
         raise RuntimeError("Dataset too small for requested query window + forward tail")
 
-    # Sample until we find a non-overlapping window.
-    # (Deterministic seed can be added later; v0 is intentionally simple.)
-    for _ in range(2000):
-        start_idx = random.randint(0, max_start_idx)
+    query_prices = np.asarray(query_df["Close"].to_numpy(), dtype=np.float64)
+    q_z = znormalize(query_prices)
+    r = max(5, int(0.05 * n))
+    U, L = compute_envelope(q_z, r)
+
+    closes = np.asarray(df["Close"].to_numpy(), dtype=np.float64)
+    T = closes.shape[0]
+
+    best_dist = np.inf
+    best_start_idx = -1
+    best_tiebreak = -1
+
+    query_mid = (q_start_idx + q_end_idx) // 2
+
+    for start_idx in range(0, max_start_idx + 1):
         end_idx = start_idx + n - 1
         forward_end_idx = end_idx + forward_days
+        if forward_end_idx >= T:
+            break
 
-        # Reject windows that overlap the query segment.
         overlaps = not (forward_end_idx < q_start_idx or start_idx > q_end_idx)
         if overlaps:
             continue
 
-        match_slice = df.iloc[start_idx : forward_end_idx + 1][["Date", "Close"]].copy()
-        match_slice = match_slice.dropna(subset=["Close"]).reset_index(drop=True)
-        if len(match_slice) != n + forward_days:
+        c = closes[start_idx : start_idx + n]
+        c_z = znormalize(c)
+
+        lb = lb_keogh(c_z, U, L)
+        if lb >= best_dist:
             continue
 
-        aligned_end_date = match_slice["Date"].iloc[n - 1]
-        forward_end_date = match_slice["Date"].iloc[-1]
+        d = dtw_sakoe_chiba(c_z, q_z, r, cutoff=best_dist)
+        if d < best_dist:
+            best_dist = d
+            best_start_idx = start_idx
+            best_tiebreak = abs(start_idx - query_mid)
+        elif d == best_dist:
+            tb = abs(start_idx - query_mid)
+            if tb > best_tiebreak:
+                best_start_idx = start_idx
+                best_tiebreak = tb
 
-        query = QueryPayload(
-            start_date=query_df["Date"].iloc[0].isoformat(),
-            end_date=query_df["Date"].iloc[-1].isoformat(),
-            dates=[d.isoformat() for d in query_df["Date"].tolist()],
-            prices=[float(x) for x in query_df["Close"].tolist()],
-        )
+    if best_start_idx < 0 or not np.isfinite(best_dist):
+        raise RuntimeError("Failed to find a valid DTW match window")
 
-        match = MatchPayload(
-            start_date=match_slice["Date"].iloc[0].isoformat(),
-            aligned_end_date=aligned_end_date.isoformat(),
-            forward_end_date=forward_end_date.isoformat(),
-            dates=[d.isoformat() for d in match_slice["Date"].tolist()],
-            prices=[float(x) for x in match_slice["Close"].tolist()],
-        )
+    match_slice = df.iloc[best_start_idx : best_start_idx + n + forward_days][
+        ["Date", "Close"]
+    ].copy()
+    match_slice = match_slice.dropna(subset=["Close"]).reset_index(drop=True)
+    if len(match_slice) != n + forward_days:
+        raise RuntimeError("Best match slice did not have expected length")
 
-        return MatchResponse(n=n, forward_days=forward_days, query=query, match=match)
+    aligned_end_date = match_slice["Date"].iloc[n - 1]
+    forward_end_date = match_slice["Date"].iloc[-1]
 
-    raise RuntimeError("Failed to sample a non-overlapping match window")
+    query = QueryPayload(
+        start_date=query_df["Date"].iloc[0].isoformat(),
+        end_date=query_df["Date"].iloc[-1].isoformat(),
+        dates=[d.isoformat() for d in query_df["Date"].tolist()],
+        prices=[float(x) for x in query_df["Close"].tolist()],
+    )
+
+    match = MatchPayload(
+        start_date=match_slice["Date"].iloc[0].isoformat(),
+        aligned_end_date=aligned_end_date.isoformat(),
+        forward_end_date=forward_end_date.isoformat(),
+        dates=[d.isoformat() for d in match_slice["Date"].tolist()],
+        prices=[float(x) for x in match_slice["Close"].tolist()],
+    )
+
+    t0_price = float(match_slice["Close"].iloc[n - 1])
+
+    def _ret(k: int) -> float:
+        return float(match_slice["Close"].iloc[n - 1 + k] / t0_price - 1.0)
+
+    forward_returns = ForwardReturns(
+        t1m=_ret(21),
+        t3m=_ret(63),
+        t6m=_ret(126),
+        t1y=_ret(252),
+    )
+
+    return MatchResponse(
+        n=n,
+        forward_days=forward_days,
+        query=query,
+        match=match,
+        forward_returns=forward_returns,
+        dtw_distance=float(best_dist),
+    )
 
