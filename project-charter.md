@@ -7,7 +7,7 @@
 
 ### 2. Executive Summary
 
-This project answers a single, high-value financial question: _"What is the S&P 500's current pattern like, and what happened next when this occurred in the past?"_ We will develop a locally hosted time-series engine that utilizes an NLP-driven semantic parser. The **Gemini API** will process a user's natural language input (e.g., _"Analyze the S&P 500 trend over the last 60 days"_) and extract the exact lookback window as a structured parameter.
+This project answers a single, high-value financial question: _"Compare today’s pattern with history to see what followed."_ We will develop a locally hosted time-series engine that utilizes an NLP-driven semantic parser. The **Gemini API** will process a user's natural language input and extract the exact lookback window as a structured parameter.
 
 The Python backend will then scan the S&P 500 index's entire history since inception to find the most mathematically similar periods using **Dynamic Time Warping (DTW)**, **Uniform Scaling**, and **LB_Keogh lower bounding** for computational efficiency. The final output is an insight-driven dashboard that calculates the average 1-month, 3-month, 6-month, and 1-year forward returns of those historical matches, providing empirical context for current market conditions.
 
