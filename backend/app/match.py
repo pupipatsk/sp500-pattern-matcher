@@ -11,6 +11,8 @@ from .tsmining import compute_envelope, dtw_sakoe_chiba, lb_keogh, znormalize
 
 
 FORWARD_DAYS_V0 = 756  # ~3 trading years
+STD_LO = 0.7
+STD_HI = 1.5
 
 
 def _to_date(s: str) -> date:
@@ -82,7 +84,11 @@ def build_match_response(*, query_start_date: str, query_end_date: str) -> Match
 
     query_mid = (q_start_idx + q_end_idx) // 2
 
-    for start_idx in range(0, max_start_idx + 1):
+    q_std = float(query_prices.std())
+    candidate_starts = range(0, max_start_idx + 1)
+    candidate_starts = [s for s in candidate_starts if STD_LO * q_std <= query_prices[s: s + n].std() <= STD_HI * q_std]
+
+    for start_idx in candidate_starts:
         end_idx = start_idx + n - 1
         forward_end_idx = end_idx + forward_days
         if forward_end_idx >= T:
@@ -161,4 +167,3 @@ def build_match_response(*, query_start_date: str, query_end_date: str) -> Match
         forward_returns=forward_returns,
         dtw_distance=float(best_dist),
     )
-
