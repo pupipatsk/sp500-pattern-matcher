@@ -57,6 +57,17 @@ def lb_keogh(c: np.ndarray, U: np.ndarray, L: np.ndarray) -> float:
 
 
 @njit(cache=True)
+def euclidean_sq(a: np.ndarray, b: np.ndarray, cutoff: float) -> float:
+    """Squared Euclidean distance with early abandonment."""
+    d = 0.0
+    for i in range(len(a)):
+        d += (a[i] - b[i]) * (a[i] - b[i])
+        if d >= cutoff:
+            return d
+    return d
+
+
+@njit(cache=True)
 def dtw_sakoe_chiba(a: np.ndarray, b: np.ndarray, r: int, cutoff: float) -> float:
     """
     Constrained DTW (Sakoe-Chiba band) with early abandon.

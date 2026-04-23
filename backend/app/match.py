@@ -86,7 +86,7 @@ def build_match_response(*, query_start_date: str, query_end_date: str) -> Match
 
     q_std = float(query_prices.std())
     candidate_starts = range(0, max_start_idx + 1)
-    candidate_starts = [s for s in candidate_starts if STD_LO * q_std <= query_prices[s: s + n].std() <= STD_HI * q_std]
+    candidate_starts = [s for s in candidate_starts if STD_LO * q_std <= closes[s: s + n].std() <= STD_HI * q_std]
 
     for start_idx in candidate_starts:
         end_idx = start_idx + n - 1
